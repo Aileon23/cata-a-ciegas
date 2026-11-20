@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cata a ciegas</title>
+<style>
+:root{color-scheme:light;--wine:#64263a;--ink:#2f2227;--muted:#685b60;--paper:#fffaf4;--line:#e5d6cf}*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:1rem/1.55 system-ui,sans-serif}
+header{background:radial-gradient(ellipse at 90% 10%,#853c55,transparent 65%),#421626;color:#fff7ef;padding:3rem 1.2rem 3.5rem}
+.wrap,main{max-width:740px;margin:auto}h1,h2{font-family:Georgia,serif;font-weight:500;line-height:1.05}
+h1{font-size:clamp(3rem,8vw,5.4rem);margin:.35rem 0 .65rem;letter-spacing:-.05em}
+.kicker{letter-spacing:.15em;text-transform:uppercase;font-size:.88rem;color:#f5c7a7}
+main{padding:0 1rem 3rem;margin-top:-1.1rem}.card{background:white;border:1px solid var(--line);border-radius:18px;padding:clamp(1rem,4vw,2rem);box-shadow:0 10px 35px #42162612}
+h2{font-size:2rem;margin:0 0 1rem}p{margin:.5rem 0 1rem;color:var(--muted)}
+.row{display:flex;gap:.8rem;align-items:center;justify-content:space-between;border-top:1px solid var(--line);padding:.8rem 0}
+label,strong,legend{font-weight:650}input,button{font:inherit;border-radius:9px;padding:.65rem .85rem;min-height:44px}
+input{border:1px solid #a69098;background:white;color:var(--ink);width:min(68%,22rem)}.voter{display:block;width:100%;margin:.35rem 0 1.2rem}
+button{border:1px solid var(--wine);background:var(--wine);color:white;cursor:pointer;font-weight:650}
+button.secondary{background:white;color:var(--wine)}button:disabled{opacity:.55;cursor:default}
+.actions{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:1rem}.status{color:var(--wine);font-weight:600;margin:.75rem 0 0}
+fieldset{border:0;padding:0;margin:0;min-width:0}legend{margin-bottom:.5rem}
+.choices{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.4rem}
+.choice{position:relative}.choice input{position:absolute;width:1px;height:1px;opacity:0;min-height:0}
+.choice span{display:flex;min-height:58px;justify-content:center;align-items:center;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--wine);font:1.6rem Georgia,serif;cursor:pointer}
+.wine-preview{margin:1rem 0;padding:0;list-style:none}.wine-preview li{text-align:center;border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--wine);padding:.75rem .15rem;font-weight:650}
+.choice input:checked+span{background:var(--wine);border-color:var(--wine);color:white}
+.choice input:focus-visible+span{outline:3px solid #a5516d;outline-offset:2px}
+.podium{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:.6rem;margin:1.25rem 0}
+.podium article{padding:1rem .65rem;text-align:center;background:#fff4df;border:1px solid #ead7b3;border-radius:12px;overflow-wrap:anywhere}
+.podium article:first-child{background:#fbe7b7}.emoji{display:block;font-size:1.9rem}.place{color:var(--wine);margin-right:.6rem}
+.votes{white-space:nowrap}.confetti{overflow:hidden;pointer-events:none;position:fixed;inset:0;z-index:3}
+.confetti i{position:absolute;top:-18px;left:var(--x);width:8px;height:13px;border-radius:2px;background:var(--c);animation:fall var(--duration) var(--delay) ease-in both}
+@keyframes fall{to{transform:translate(var(--drift),105vh) rotate(680deg);opacity:.3}}@media(prefers-reduced-motion:reduce){.confetti{display:none}}
+</style>
+<header><div class="wrap"><div class="kicker">Cinco vinos · Un voto por persona</div><h1>Cata a ciegas</h1></div></header>
+<main><section class="card"><div id="app"></div><p id="status" class="status" role="status"></p></section></main>
+<script>
+const wines=[1,2,3,4,5];
+const app=document.querySelector('#app');
+const status=document.querySelector('#status');
+const [id,key]=location.hash.slice(1).split('/');
+const apiOrigin='https://cata-a-ciegas-cinco-vinos.dearjaguar5.chatgpt.site';
+const path='/api/v2/'+id;
+const link=(id,key)=>location.href.split('#')[0]+'#'+id+(key?'/'+key:'');
+const voteCount=n=>n+(n===1?' voto':' votos');
+let submitted=false;
+async function call(url,body){
+  const payload=key?{...body,admin:key}:body;
+  const endpoint=key&&!body?url+'/state':url;
+  const res=await fetch(apiOrigin+endpoint,{
+    method:payload?'POST':'GET',
+    body:payload?JSON.stringify(payload):undefined
+  });
+  const data=await res.json();
+  if(!res.ok)throw Error(data.error);
+  return data;
+}
+function bind(form,action){
+  form.onsubmit=async event=>{
+    event.preventDefault();
+    const button=event.submitter;
+    button.disabled=true;
+    status.textContent='';
+    try{await action(new FormData(form));}
+    catch(error){status.textContent=error.message;}
+    finally{button.disabled=false;}
+  };
+}
+function setup(){
+  app.innerHTML='<h2>Organizar una cata</h2><p>Etiqueta las botellas del 1 al 5. Al crear la cata tendrás un enlace para que hasta 25 personas voten por su vino favorito.</p><ul class="choices wine-preview" aria-label="Vinos de la cata">'+wines.map(n=>'<li>Vino '+n+'</li>').join('')+'</ul><form class="actions"><button>Crear cata</button></form>';
+  bind(app.querySelector('form'),async ()=>{
+    const created=await call('/api/v2/create',{});
+    location.href=link(created.id,created.admin);
+  });
+}
+function celebrate(){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches || document.querySelector('.confetti'))return;
+  const overlay=document.createElement('div');
+  overlay.className='confetti';
+  overlay.setAttribute('aria-hidden','true');
+  const colors=['#cb8b24','#843c55','#f0bb81','#7662a2','#2c806a'];
+  for(let i=0;i<54;i++){
+    const piece=document.createElement('i');
+    piece.style.cssText='--x:'+(i*13%101)+'%;--c:'+colors[i%5]+';--duration:'+(1.8+i%7*.2)+'s;--delay:'+(i%11*.08)+'s;--drift:'+(i%2?-70:65)+'px';
+    overlay.append(piece);
+  }
+  document.body.append(overlay);
+  setTimeout(()=>overlay.remove(),4500);
+}
+function results(state){
+  const podium=state.ranking.filter(entry=>entry.place<=3 && entry.votes>0);
+  const medals=['🥇','🥈','🥉'];
+  app.innerHTML='<h2>Resultados de la cata <span aria-hidden="true">🎉</span></h2><p>'+voteCount(state.count)+' en total</p><div class="podium">'+podium.map(entry=>
+    '<article><span class="emoji" aria-hidden="true">'+medals[entry.place-1]+'</span><strong>'+entry.place+'º · Vino '+entry.wine+'</strong></article>').join('')+'</div>'+state.ranking.map(entry=>
+    '<div class="row"><span><span class="place">'+entry.place+'º</span><strong>Vino '+entry.wine+'</strong></span><strong class="votes">'+voteCount(entry.votes)+'</strong></div>').join('');
+  celebrate();
+}
+function organizer(state){
+  app.innerHTML='<h2>Mesa organizadora</h2><p><strong>'+state.count+' de '+state.limit+'</strong> votos recibidos. Comparte el enlace de votación y guarda esta página para cerrar la cata.</p><form class="actions"><button type="button" class="copy">Copiar enlace de votación</button><button type="button" class="secondary refresh">Actualizar recuento</button><button class="secondary" '+(state.count===0?'disabled':'')+'>Cerrar y revelar</button></form>';
+  app.querySelector('.copy').onclick=async()=>{
+    const url=link(id);
+    try{await navigator.clipboard.writeText(url);status.textContent='Enlace de votación copiado.';}
+    catch{window.prompt('Copia el enlace de votación',url);}
+  };
+  bind(app.querySelector('form'),async()=>{
+    if(!confirm('¿Cerrar la votación y revelar los resultados?'))return;
+    await call(path+'/close',{});await render();
+  });
+}
+function ballot(){
+  app.innerHTML='<h2>Vota por tu vino favorito</h2><form><label for="voter">Tu nombre</label><input class="voter" id="voter" name="name" autocomplete="name" required maxlength="80"><fieldset><legend>Elige un vino</legend><div class="choices">'+wines.map(n=>'<label class="choice"><input type="radio" name="wine" value="'+n+'" aria-label="Vino '+n+'" required><span aria-hidden="true">'+n+'</span></label>').join('')+'</div></fieldset><div class="actions"><button>Enviar voto</button></div></form>';
+  bind(app.querySelector('form'),async data=>{
+    await call(path+'/vote',{name:data.get('name'),wine:Number(data.get('wine'))});
+    submitted=true;
+    await render();
+  });
+}
+async function render(){
+  if(!id){setup();return;}
+  if(!id.startsWith('v2-')){location.replace(apiOrigin+'/clasica'+location.hash);return;}
+  const state=await call(path);
+  if(state.closed){results(state);return;}
+  if(state.admin){organizer(state);}
+  else if(submitted || state.count>=state.limit){
+    app.innerHTML=(submitted?'<h2>Voto registrado</h2>':'<h2>Se han recibido 25 votos</h2>')+'<p>Podrás ver el ranking aquí cuando la mesa cierre la votación.</p><button class="secondary refresh">Ver si hay resultados</button>';
+  }else{ballot();}
+  const refresh=app.querySelector('.refresh');
+  if(refresh)refresh.onclick=load;
+}
+function load(){status.textContent='';render().catch(error=>status.textContent=error.message);}
+window.addEventListener('hashchange',()=>location.reload());
+load();
+</script></html>
